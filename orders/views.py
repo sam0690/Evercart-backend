@@ -1,8 +1,14 @@
 from rest_framework import viewsets, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from .models import CartItem, Order, OrderItem
-from .serializers import CartItemSerializer, OrderSerializer, OrderSubmitSerializer
+from .serializers import (
+    CartItemSerializer,
+    OrderSerializer,
+    OrderSubmitSerializer,
+    OrderAdminWriteSerializer,
+)
 from django.shortcuts import get_object_or_404
 from products.models import Product
 from decimal import Decimal
@@ -32,14 +38,46 @@ class CartViewSet(viewsets.ModelViewSet):
             obj.save()
         serializer = self.get_serializer(obj)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-class OrderViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = OrderSerializer
+class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
+    def _is_admin(self, user):
+        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False) or getattr(user, "is_admin", False)
+
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user).prefetch_related("items__product")
+        queryset = Order.objects.all().select_related("user").prefetch_related(
+            "items__product",
+            "items__product__images",
+            "payment_set",
+        )
+        if not self._is_admin(self.request.user):
+            queryset = queryset.filter(user=self.request.user)
+        return queryset
+
+    def get_serializer_class(self):
+        if self._is_admin(self.request.user) and self.action in {"create", "update", "partial_update"}:
+            return OrderAdminWriteSerializer
+        return OrderSerializer
+
+    def _ensure_admin(self):
+        if not self._is_admin(self.request.user):
+            raise PermissionDenied("Admin access required for this action")
+
+    def perform_create(self, serializer):
+        self._ensure_admin()
+        serializer.save()
+
+    def update(self, request, *args, **kwargs):
+        self._ensure_admin()
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        self._ensure_admin()
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        self._ensure_admin()
+        return super().destroy(request, *args, **kwargs)
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])

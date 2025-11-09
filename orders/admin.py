@@ -1,13 +1,27 @@
 from django.contrib import admin
 from .models import CartItem, Order, OrderItem
 
-admin.site.register(CartItem)
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    list_display = ("user", "product", "quantity", "added_at")
+    search_fields = ("user__username", "product__title")
+    list_filter = ("added_at",)
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
+    autocomplete_fields = ("product",)
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "status", "total", "created_at")
+    list_display = ("id", "user", "status", "total", "is_paid", "created_at")
+    list_filter = ("status", "is_paid", "created_at")
+    search_fields = ("user__username", "transaction_id")
+    readonly_fields = ("created_at",)
+    fieldsets = (
+        (None, {"fields": ("user", "status", "is_paid")}),
+        ("Billing", {"fields": ("total", "transaction_id")}),
+        ("Shipping", {"fields": ("shipping_address", "shipping_city", "shipping_postal_code", "shipping_country")}),
+        ("Timestamps", {"fields": ("created_at",)}),
+    )
     inlines = [OrderItemInline]

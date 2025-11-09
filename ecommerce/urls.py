@@ -22,8 +22,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from users.views import admin_profile_view, admin_refresh_access_token, AdminLoginView
 
 urlpatterns = [
-    # API admin endpoints at root level
-    path("admin/login/", AdminLoginView.as_view(), name="api_admin_login"),
+    # API admin endpoints (prefixed to avoid clashing with Django admin UI)
+    path("api/admin/login/", AdminLoginView.as_view(), name="api_admin_login"),
     path("api/admin/profile/", admin_profile_view, name="api_admin_profile"),
     path("api/admin/refresh/", admin_refresh_access_token, name="api_admin_refresh"),
     

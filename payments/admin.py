@@ -7,3 +7,4 @@ class PaymentAdmin(admin.ModelAdmin):
     list_filter = ("method", "status", "created_at")
     search_fields = ("user__username", "order__id", "ref_id")
     readonly_fields = ("created_at",)
+    autocomplete_fields = ("user", "order")
