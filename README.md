@@ -286,17 +286,6 @@ See [requirements.txt](./requirements.txt) for full list.
 3. Test thoroughly
 4. Submit a pull request
 
-## 📄 License
-
-[Add your license here]
-
-## 📞 Support
-
-For issues or questions, please refer to:
-
-- [API_DOCUMENTATION.md](./API_DOCUMENTATION.md)
-- [REVIEW_AND_FIXES.md](./REVIEW_AND_FIXES.md)
-
 ---
 
 **Built with Django REST Framework for EverCart** 🛒
