@@ -1,0 +1,51 @@
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+
+# Migrations (keep the __init__.py and initial migrations)
+# Uncomment if you want to ignore migration files
+# */migrations/*.py
+# !*/migrations/__init__.py
+
+# Security
+*.pem
+*.key
+*.cert
