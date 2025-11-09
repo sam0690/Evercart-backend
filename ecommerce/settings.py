@@ -191,3 +191,7 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = False
 SESSION_COOKIE_SECURE = False
+
+# Use database sessions (default) and expire when the browser closes
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True

@@ -8,8 +8,17 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.middleware.csrf import get_token
+from django.contrib.auth import get_user_model
 
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer, AdminUserSerializer
+
+
+def _is_admin(user):
+    return (
+        getattr(user, "is_staff", False)
+        or getattr(user, "is_superuser", False)
+        or getattr(user, "is_admin", False)
+    )
 
 class RegisterView(generics.CreateAPIView):
     permission_classes = (AllowAny,)
@@ -147,11 +156,60 @@ def profile_view(request):
 def admin_profile_view(request):
     """Admin-only: Get current admin's profile (requires admin role)"""
     user = request.user
-    is_admin = getattr(user, "is_staff", False) or getattr(user, "is_superuser", False) or getattr(user, "is_admin", False)
-    if not is_admin:
+    if not _is_admin(user):
         return Response({"detail": "Admin access only"}, status=status.HTTP_403_FORBIDDEN)
     serializer = UserSerializer(user)
     return Response(serializer.data)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def list_users(request):
+    """Admin-only: list or create users"""
+    user = request.user
+    if not _is_admin(user):
+        return Response({"detail": "Admin access only"}, status=status.HTTP_403_FORBIDDEN)
+
+    User = get_user_model()
+    if request.method == "GET":
+        queryset = User.objects.all().order_by("-date_joined")
+        serializer = UserSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    serializer = AdminUserSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    user_instance = serializer.save()
+    return Response(AdminUserSerializer(user_instance).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def admin_user_detail(request, user_id: int):
+    """Admin-only: retrieve, update, or delete a specific user"""
+    if not _is_admin(request.user):
+        return Response({"detail": "Admin access only"}, status=status.HTTP_403_FORBIDDEN)
+
+    User = get_user_model()
+    try:
+        user_instance = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        serializer = AdminUserSerializer(user_instance)
+        return Response(serializer.data)
+
+    if request.method == "PATCH":
+        serializer = AdminUserSerializer(user_instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(AdminUserSerializer(user_instance).data)
+
+    if user_instance.id == request.user.id:
+        return Response({"detail": "You cannot delete your own account"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user_instance.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -179,8 +237,7 @@ def admin_refresh_access_token(request):
             return Response({"detail": "User not found"}, status=status.HTTP_401_UNAUTHORIZED)
         
         # Verify admin role
-        is_admin = getattr(user, "is_staff", False) or getattr(user, "is_superuser", False) or getattr(user, "is_admin", False)
-        if not is_admin:
+        if not _is_admin(user):
             return Response({"detail": "Admin access only"}, status=status.HTTP_403_FORBIDDEN)
         
         access = str(token.access_token)
