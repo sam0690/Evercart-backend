@@ -153,7 +153,14 @@ SIMPLE_JWT = {
 
 ESEWA_MERCHANT_ID = "EPAYTEST"  # test merchant
 ESEWA_VERIFY_URL = "https://uat.esewa.com.np/epay/transrec"
-ESEWA_PAYMENT_URL = "https://uat.esewa.com.np/epay/main"
+ESEWA_PAYMENT_URL = "https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+ESEWA_PRODUCT_CODE = "EPAYTEST"  # defaults to merchant id if not provided
+ESEWA_SECRET_KEY = "8gBm/:&EnhH.1/q"
+
+# Frontend base URL for redirecting after payments
+FRONTEND_BASE_URL = "http://localhost:3000"
+ESEWA_SUCCESS_REDIRECT = f"{FRONTEND_BASE_URL}/payment/success"
+ESEWA_FAILURE_REDIRECT = f"{FRONTEND_BASE_URL}/payment/failure"
 
 KHALTI_SECRET_KEY = "test_secret_key_xxx"
 KHALTI_VERIFY_URL = "https://khalti.com/api/v2/payment/verify/"

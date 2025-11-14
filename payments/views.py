@@ -1,12 +1,23 @@
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.response import Response
-from rest_framework import status
+import uuid
+from decimal import Decimal
+
 from django.conf import settings
-from .models import Payment
+from django.shortcuts import redirect
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+
 from orders.models import Order
-from django.db import models
-from .utils import verify_esewa, verify_khalti, verify_fonepay, generate_fonepay_checksum
+from .models import Payment
+from .utils import (
+    generate_esewa_signature,
+    generate_fonepay_checksum,
+    verify_esewa,
+    verify_fonepay,
+    verify_khalti,
+)
 
 # ---------- INITIATE PAYMENT ----------
 @api_view(["POST"])
@@ -27,18 +38,57 @@ def initiate_payment(request):
     )
 
     if method == "esewa":
+        transaction_uuid = str(uuid.uuid4())
+        product_code = getattr(settings, "ESEWA_PRODUCT_CODE", settings.ESEWA_MERCHANT_ID)
+
+        def _fmt(value: Decimal | str | float | int) -> str:
+            decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+            quantized = decimal_value.quantize(Decimal("0.01"))
+            sval = format(quantized, "f")
+            if "." in sval:
+                sval = sval.rstrip("0").rstrip(".")
+            return sval or "0"
+
+        total_amount_decimal = (
+            order.total if isinstance(order.total, Decimal) else Decimal(str(order.total))
+        ).quantize(Decimal("0.01"))
+        tax_amount_decimal = Decimal("0")
+        base_amount_decimal = (total_amount_decimal - tax_amount_decimal).quantize(Decimal("0.01"))
+
+        success_callback = request.build_absolute_uri(
+            reverse("esewa_verify") + f"?oid={order.id}&uuid={transaction_uuid}"
+        )
+        failure_callback = request.build_absolute_uri(
+            reverse("esewa_fail") + f"?oid={order.id}&uuid={transaction_uuid}"
+        )
+
         payload = {
-            "amt": order.total,
-            "pdc": 0,
-            "psc": 0,
-            "txAmt": 0,
-            "tAmt": order.total,
-            "pid": str(order.id),
-            "scd": settings.ESEWA_MERCHANT_ID,
-            "su": f"http://localhost:8000/api/payments/esewa-verify/?oid={order.id}",
-            "fu": f"http://localhost:8000/api/payments/esewa-fail/?oid={order.id}"
+            "amount": _fmt(base_amount_decimal),
+            "tax_amount": _fmt(tax_amount_decimal),
+            "total_amount": _fmt(total_amount_decimal),
+            "transaction_uuid": transaction_uuid,
+            "product_code": product_code,
+            "product_service_charge": "0",
+            "product_delivery_charge": "0",
+            "success_url": success_callback,
+            "failure_url": failure_callback,
+            "merchant_code": settings.ESEWA_MERCHANT_ID,
+            "signed_field_names": "amount,tax_amount,total_amount,transaction_uuid,product_code",
         }
-        return Response({"url": settings.ESEWA_PAYMENT_URL, "params": payload})
+
+        signed_fields = payload["signed_field_names"].split(",")
+        signature_message = ",".join(f"{field}={payload[field]}" for field in signed_fields)
+        payload["signature"] = generate_esewa_signature(payload, signed_fields)
+
+        payment.transaction_uuid = transaction_uuid
+        payment.product_code = product_code
+        payment.save(update_fields=["transaction_uuid", "product_code"])
+
+        response_payload = {"url": settings.ESEWA_PAYMENT_URL, "params": payload}
+        if getattr(settings, "DEBUG", False):
+            response_payload["debug"] = {"signature_message": signature_message}
+
+        return Response(response_payload)
 
     elif method == "khalti":
         # Frontend uses Khalti widget directly, backend only verifies
@@ -73,30 +123,65 @@ def initiate_payment(request):
 
 
 # ---------- VERIFY ESEWA ----------
-@api_view(["GET"])
+def _frontend_success_redirect(order_id: str | int, ref_id: str | None = None) -> str:
+    base_url = getattr(settings, "ESEWA_SUCCESS_REDIRECT", getattr(settings, "FRONTEND_BASE_URL", ""))
+    if not base_url:
+        return "/"  # default fallback
+    extras = f"?order_id={order_id}"
+    if ref_id:
+        extras += f"&ref_id={ref_id}"
+    return f"{base_url}{extras}" if base_url.endswith('/') else f"{base_url}{extras}"
+
+
+def _frontend_failure_redirect(order_id: str | int | None = None) -> str:
+    base_url = getattr(settings, "ESEWA_FAILURE_REDIRECT", getattr(settings, "FRONTEND_BASE_URL", ""))
+    if not base_url:
+        return "/"
+    extras = f"?order_id={order_id}" if order_id else ""
+    return f"{base_url}{extras}" if base_url.endswith('/') else f"{base_url}{extras}"
+
+
+@api_view(["GET", "POST"])
 @permission_classes([AllowAny])
 def esewa_verify(request):
-    refId = request.GET.get("refId")
-    amt = request.GET.get("amt")
-    oid = request.GET.get("oid")
+    data = request.data if request.method == "POST" else request.GET
+    ref_id = data.get("refId") or data.get("reference_id")
+    amt = data.get("amt") or data.get("amount")
+    oid = data.get("oid") or data.get("order_id")
 
-    success = verify_esewa(refId, amt, oid)
-    payment = Payment.objects.filter(order_id=oid, method="esewa").first()
+    if not (ref_id and amt and oid):
+        return redirect(_frontend_failure_redirect(oid))
+
+    success = verify_esewa(ref_id, amt, oid)
+    payment = Payment.objects.filter(order_id=oid, method="esewa").order_by("-created_at").first()
 
     if success and payment:
         payment.status = "success"
-        payment.ref_id = refId
-        payment.save()
+        payment.ref_id = ref_id
+        payment.save(update_fields=["status", "ref_id"])
         payment.order.status = "paid"
         payment.order.is_paid = True
-        payment.order.transaction_id = refId
-        payment.order.save()
-        return Response({"message": "eSewa Payment Successful"})
-    else:
-        if payment:
-            payment.status = "failed"
-            payment.save()
-        return Response({"message": "eSewa Payment Failed"}, status=400)
+        payment.order.transaction_id = ref_id
+        payment.order.save(update_fields=["status", "is_paid", "transaction_id"])
+        return redirect(_frontend_success_redirect(oid, ref_id))
+
+    if payment:
+        payment.status = "failed"
+        payment.save(update_fields=["status"])
+
+    return redirect(_frontend_failure_redirect(oid))
+
+
+@api_view(["GET", "POST"])
+@permission_classes([AllowAny])
+def esewa_fail(request):
+    data = request.data if request.method == "POST" else request.GET
+    oid = data.get("oid") or data.get("order_id")
+    payment = Payment.objects.filter(order_id=oid, method="esewa").order_by("-created_at").first()
+    if payment and payment.status != "failed":
+        payment.status = "failed"
+        payment.save(update_fields=["status"])
+    return redirect(_frontend_failure_redirect(oid))
 
 
 # ---------- VERIFY KHALTI ----------
@@ -168,3 +253,5 @@ def bank_confirm(request):
     order.transaction_id = transaction_id
     order.save()
     return Response({"message": "Bank payment confirmed"})
+
+
