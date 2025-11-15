@@ -27,7 +27,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.1.73", 'evercart_backend.onrender.com']
+ALLOWED_HOSTS = ['evercart_backend.onrender.com',"localhost", "127.0.0.1", "192.168.1.73", ]
 
 
 # Application definition
@@ -214,6 +214,7 @@ CORS_ALLOWED_ORIGINS = [
     # Allow local network access to Next.js dev server
     "http://192.168.1.73:3000",
     "http://192.168.1.73:3001",
+    "https://evercart-backend.onrender.com"
 ]
 CORS_ALLOW_CREDENTIALS = True  # Required for cookie-based auth
 
