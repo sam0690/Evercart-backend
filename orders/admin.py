@@ -21,7 +21,7 @@ class OrderAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("user", "status", "is_paid")}),
         ("Billing", {"fields": ("total", "transaction_id")}),
-        ("Shipping", {"fields": ("shipping_address", "shipping_city", "shipping_postal_code", "shipping_country")}),
+    ("Shipping", {"fields": ("shipping_address", "shipping_city", "shipping_postal_code", "shipping_country", "shipping_phone")}),
         ("Timestamps", {"fields": ("created_at",)}),
     )
     inlines = [OrderItemInline]
