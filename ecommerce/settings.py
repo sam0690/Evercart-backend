@@ -192,7 +192,7 @@ ESEWA_PRODUCT_CODE = "EPAYTEST"  # defaults to merchant id if not provided
 ESEWA_SECRET_KEY = "8gBm/:&EnhH.1/q"
 
 # Frontend base URL for redirecting after payments
-FRONTEND_BASE_URL = "http://localhost:3000"
+FRONTEND_BASE_URL = "https://evercart-frontend.vercel.app"
 ESEWA_SUCCESS_REDIRECT = f"{FRONTEND_BASE_URL}/payment/success"
 ESEWA_FAILURE_REDIRECT = f"{FRONTEND_BASE_URL}/payment/failure"
 
