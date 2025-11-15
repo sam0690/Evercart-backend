@@ -186,6 +186,7 @@ def esewa_verify(request):
         return redirect(_frontend_failure_redirect(oid))
 
     success = False
+    details: dict[str, object] = {}
     for pid in candidate_pids:
         is_valid, details = verify_esewa(ref_id, amount_to_verify, pid)
         if not is_valid:
@@ -222,6 +223,21 @@ def esewa_verify(request):
                 order_identifier = order_obj.id
 
         return redirect(_frontend_success_redirect(order_identifier, ref_id))
+
+    raw_status = str(data.get("status") or "").strip().lower()
+    parsed_status = str((details.get("parsed") or {}).get("status") or "").strip().lower()
+    pending_in_response = "pending" in raw_status or "pending" in parsed_status
+    payment_is_pending = bool(payment and str(payment.status or "").strip().lower() == "pending")
+    pending_order_id = None
+    if payment and payment.order_id:
+        pending_order_id = payment.order_id
+    elif oid:
+        pending_order_id = oid
+    elif transaction_uuid:
+        pending_order_id = transaction_uuid
+
+    if (pending_in_response or payment_is_pending) and pending_order_id:
+        return redirect(_frontend_success_redirect(pending_order_id, ref_id))
 
     if payment:
         if payment.status != "failed":
