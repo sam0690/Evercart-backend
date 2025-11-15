@@ -50,6 +50,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "is_paid",
             "transaction_id",
+            "transaction_uuid",
             "shipping_address",
             "shipping_city",
             "shipping_postal_code",
@@ -65,6 +66,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "is_paid",
             "transaction_id",
+            "transaction_uuid",
             "created_at",
             "items",
             "payment_details",
@@ -109,7 +111,8 @@ class OrderAdminWriteSerializer(serializers.ModelSerializer):
             "total",
             "status",
             "is_paid",
-            "transaction_id",
+            
+            "transaction_uuid",
             "shipping_address",
             "shipping_city",
             "shipping_postal_code",
@@ -123,7 +126,8 @@ class OrderAdminWriteSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "status": {"required": False},
             "is_paid": {"required": False},
-            "transaction_id": {"required": False, "allow_blank": True},
+            
+            "transaction_uuid": {"required": False, "allow_blank": True},
             "shipping_address": {"required": False, "allow_blank": True},
             "shipping_city": {"required": False, "allow_blank": True},
             "shipping_postal_code": {"required": False, "allow_blank": True},

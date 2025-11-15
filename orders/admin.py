@@ -14,13 +14,13 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "status", "total", "is_paid", "created_at")
+    list_display = ("id", "user", "status", "total", "is_paid", "transaction_id", "transaction_uuid", "created_at")
     list_filter = ("status", "is_paid", "created_at")
     search_fields = ("user__username", "transaction_id")
     readonly_fields = ("created_at",)
     fieldsets = (
         (None, {"fields": ("user", "status", "is_paid")}),
-        ("Billing", {"fields": ("total", "transaction_id")}),
+    ("Billing", {"fields": ("total", "transaction_id", "transaction_uuid")}),
     ("Shipping", {"fields": ("shipping_address", "shipping_city", "shipping_postal_code", "shipping_country", "shipping_phone")}),
         ("Timestamps", {"fields": ("created_at",)}),
     )
