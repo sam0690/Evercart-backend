@@ -225,6 +225,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3001",
     "http://192.168.1.73:3000",
     "http://192.168.1.73:3001",
+    "https://evercart-backend.onrender.com"
 ]
 
 # Cookie settings for development
