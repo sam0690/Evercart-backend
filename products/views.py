@@ -54,9 +54,17 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
+from rest_framework.permissions import BasePermission
+
+class IsStaffOrAdmin(BasePermission):
+    """
+    Allows access only to staff or superuser users.
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and (request.user.is_staff or request.user.is_superuser))
+
 
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
@@ -64,22 +72,25 @@ from rest_framework import status
 from .models import Product
 from .serializers import ProductAdminSerializer
 
-@csrf_exempt  # <--- ADD THIS
+@csrf_exempt  # Optional if using session/cookie authentication
 @api_view(["GET", "POST", "PUT", "DELETE"])
-@permission_classes([IsAdminUser])
+@permission_classes([IsStaffOrAdmin])  # <-- change here
 def manage_products(request):
+    """
+    Admin/staff API to manage products.
+    """
     if request.method == "GET":
         products = Product.objects.all()
         serializer = ProductAdminSerializer(products, many=True)
         return Response(serializer.data)
-    
+
     elif request.method == "POST":
         serializer = ProductAdminSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     elif request.method == "PUT":
         product_id = request.data.get("id")
         if not product_id:
@@ -93,7 +104,7 @@ def manage_products(request):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     elif request.method == "DELETE":
         product_id = request.data.get("id")
         if not product_id:
@@ -104,5 +115,4 @@ def manage_products(request):
             return Response({"message": "Deleted"}, status=status.HTTP_204_NO_CONTENT)
         except Product.DoesNotExist:
             return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-
 
