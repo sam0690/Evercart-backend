@@ -214,7 +214,8 @@ CORS_ALLOWED_ORIGINS = [
     # Allow local network access to Next.js dev server
     "http://192.168.1.73:3000",
     "http://192.168.1.73:3001",
-    "https://evercart-backend.onrender.com"
+    "https://evercart-backend.onrender.com",
+    "https://evercart-frontend.vercel.app"
 ]
 CORS_ALLOW_CREDENTIALS = True  # Required for cookie-based auth
 
@@ -226,7 +227,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3001",
     "http://192.168.1.73:3000",
     "http://192.168.1.73:3001",
-    "https://evercart-backend.onrender.com"
+    "https://evercart-backend.onrender.com",
+    "https://evercart-frontend.vercel.app"
 ]
 
 # Cookie settings for development
