@@ -114,6 +114,7 @@ def submit_order(request):
         "shipping_city": serializer.validated_data["shipping_city"],
         "shipping_postal_code": serializer.validated_data["shipping_postal_code"],
         "shipping_country": serializer.validated_data["shipping_country"],
+        "shipping_phone": serializer.validated_data["shipping_phone"],
     }
 
     with transaction.atomic():

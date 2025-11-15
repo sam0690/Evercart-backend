@@ -50,10 +50,12 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "is_paid",
             "transaction_id",
+            "transaction_uuid",
             "shipping_address",
             "shipping_city",
             "shipping_postal_code",
             "shipping_country",
+            "shipping_phone",
             "created_at",
             "items",
             "payment_details",
@@ -64,6 +66,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "is_paid",
             "transaction_id",
+            "transaction_uuid",
             "created_at",
             "items",
             "payment_details",
@@ -92,6 +95,7 @@ class OrderSubmitSerializer(serializers.Serializer):
     shipping_city = serializers.CharField(max_length=120)
     shipping_postal_code = serializers.CharField(max_length=30)
     shipping_country = serializers.CharField(max_length=120)
+    shipping_phone = serializers.CharField(max_length=20)
 
 
 class OrderAdminWriteSerializer(serializers.ModelSerializer):
@@ -107,11 +111,13 @@ class OrderAdminWriteSerializer(serializers.ModelSerializer):
             "total",
             "status",
             "is_paid",
-            "transaction_id",
+            
+            "transaction_uuid",
             "shipping_address",
             "shipping_city",
             "shipping_postal_code",
             "shipping_country",
+            "shipping_phone",
             "created_at",
             "items",
             "items_data",
@@ -120,11 +126,13 @@ class OrderAdminWriteSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "status": {"required": False},
             "is_paid": {"required": False},
-            "transaction_id": {"required": False, "allow_blank": True},
+            
+            "transaction_uuid": {"required": False, "allow_blank": True},
             "shipping_address": {"required": False, "allow_blank": True},
             "shipping_city": {"required": False, "allow_blank": True},
             "shipping_postal_code": {"required": False, "allow_blank": True},
             "shipping_country": {"required": False, "allow_blank": True},
+            "shipping_phone": {"required": False, "allow_blank": True},
         }
 
     def _create_items(self, order: Order, items_data):

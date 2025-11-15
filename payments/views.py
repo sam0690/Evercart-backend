@@ -45,8 +45,12 @@ def initiate_payment(request):
             decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
             quantized = decimal_value.quantize(Decimal("0.01"))
             sval = format(quantized, "f")
-            if "." in sval:
-                sval = sval.rstrip("0").rstrip(".")
+            if "." not in sval:
+                sval = f"{sval}.00"
+            else:
+                fractional = sval.split(".")[-1]
+                if len(fractional) == 1:
+                    sval = f"{sval}0"
             return sval or "0"
 
         total_amount_decimal = (
@@ -145,29 +149,84 @@ def _frontend_failure_redirect(order_id: str | int | None = None) -> str:
 @permission_classes([AllowAny])
 def esewa_verify(request):
     data = request.data if request.method == "POST" else request.GET
+
     ref_id = data.get("refId") or data.get("reference_id")
     amt = data.get("amt") or data.get("amount")
     oid = data.get("oid") or data.get("order_id")
+    transaction_uuid = data.get("transaction_uuid") or data.get("uuid")
 
-    if not (ref_id and amt and oid):
+    if not (ref_id and (amt or transaction_uuid) and (oid or transaction_uuid)):
         return redirect(_frontend_failure_redirect(oid))
 
-    success = verify_esewa(ref_id, amt, oid)
-    payment = Payment.objects.filter(order_id=oid, method="esewa").order_by("-created_at").first()
+    payment_qs = Payment.objects.filter(method="esewa")
+    payment = None
+    if transaction_uuid:
+        payment = payment_qs.filter(transaction_uuid=transaction_uuid).order_by("-created_at").first()
+    if not payment and oid:
+        payment = payment_qs.filter(order_id=oid).order_by("-created_at").first()
+    if payment and not oid:
+        oid = payment.order_id
 
-    if success and payment:
-        payment.status = "success"
-        payment.ref_id = ref_id
-        payment.save(update_fields=["status", "ref_id"])
-        payment.order.status = "paid"
-        payment.order.is_paid = True
-        payment.order.transaction_id = ref_id
-        payment.order.save(update_fields=["status", "is_paid", "transaction_id"])
-        return redirect(_frontend_success_redirect(oid, ref_id))
+    amount_to_verify = amt or (payment.amount if payment else None)
+    if amount_to_verify is None:
+        return redirect(_frontend_failure_redirect(oid))
+
+    candidate_pids: list[str] = []
+    if transaction_uuid:
+        candidate_pids.append(transaction_uuid)
+    if oid:
+        candidate_pids.append(str(oid))
+    if payment and payment.product_code:
+        candidate_pids.append(payment.product_code)
+    # Ensure uniqueness while preserving order
+    seen = set()
+    candidate_pids = [pid for pid in candidate_pids if not (pid in seen or seen.add(pid))]
+
+    if not candidate_pids:
+        return redirect(_frontend_failure_redirect(oid))
+
+    success = False
+    for pid in candidate_pids:
+        is_valid, details = verify_esewa(ref_id, amount_to_verify, pid)
+        if not is_valid:
+            continue
+
+        parsed_payload = (details or {}).get('parsed', {})
+        response_oid = parsed_payload.get('oid') or parsed_payload.get('orderid') or parsed_payload.get('order_id')
+        if response_oid and oid and str(response_oid).strip() != str(oid).strip():
+            continue
+
+        success = True
+        break
+
+    if success:
+        order_identifier = oid or transaction_uuid or ""
+        if payment:
+            payment.status = "success"
+            payment.ref_id = ref_id
+            payment.save(update_fields=["status", "ref_id"])
+
+            if payment.order:
+                order_obj = payment.order
+                order_obj.status = "paid"
+                order_obj.is_paid = True
+                order_obj.transaction_id = ref_id
+
+                update_fields = ["status", "is_paid", "transaction_id"]
+                desired_uuid = payment.transaction_uuid or transaction_uuid
+                if desired_uuid and order_obj.transaction_uuid != desired_uuid:
+                    order_obj.transaction_uuid = desired_uuid
+                    update_fields.append("transaction_uuid")
+
+                order_obj.save(update_fields=update_fields)
+                order_identifier = order_obj.id
+
+        return redirect(_frontend_success_redirect(order_identifier, ref_id))
 
     if payment:
-        payment.status = "failed"
-        payment.save(update_fields=["status"])
+        if payment.status != "failed":
+            payment.status = "failed"
+            payment.save(update_fields=["status"])
 
     return redirect(_frontend_failure_redirect(oid))
 
@@ -177,11 +236,23 @@ def esewa_verify(request):
 def esewa_fail(request):
     data = request.data if request.method == "POST" else request.GET
     oid = data.get("oid") or data.get("order_id")
-    payment = Payment.objects.filter(order_id=oid, method="esewa").order_by("-created_at").first()
-    if payment and payment.status != "failed":
-        payment.status = "failed"
-        payment.save(update_fields=["status"])
-    return redirect(_frontend_failure_redirect(oid))
+    transaction_uuid = data.get("transaction_uuid") or data.get("uuid")
+    payment_qs = Payment.objects.filter(method="esewa")
+    payment = None
+    if transaction_uuid:
+        payment = payment_qs.filter(transaction_uuid=transaction_uuid).order_by("-created_at").first()
+    if not payment and oid:
+        payment = payment_qs.filter(order_id=oid).order_by("-created_at").first()
+    if payment:
+        if payment.status == "success":
+            return redirect(_frontend_success_redirect(payment.order_id, payment.ref_id))
+        if payment.status != "failed":
+            payment.status = "failed"
+            payment.save(update_fields=["status"])
+        fallback_oid = payment.order_id
+    else:
+        fallback_oid = oid
+    return redirect(_frontend_failure_redirect(fallback_oid))
 
 
 # ---------- VERIFY KHALTI ----------

@@ -27,7 +27,9 @@ class Order(models.Model):
     shipping_city = models.CharField(max_length=120, blank=True)
     shipping_postal_code = models.CharField(max_length=30, blank=True)
     shipping_country = models.CharField(max_length=120, blank=True)
+    shipping_phone = models.CharField(max_length=20, blank=True)
     transaction_id = models.CharField(max_length=255, blank=True, null=True)
+    transaction_uuid = models.CharField(max_length=64, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
 class OrderItem(models.Model):
